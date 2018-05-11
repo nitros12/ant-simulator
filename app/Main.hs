@@ -29,14 +29,22 @@ renderWorkspace sqrsize workspace = pictures $ do
   pure $ drawSquare sqrsize (x * sqrsize, y * sqrsize) c
 
 
-defaultProgram :: ([AntState], AntState)
+defaultProgram :: AntState
 defaultProgram =
-  let a = AntState black (rotateLeft  >> setState b >> stepAnt)
-      b = AntState white (rotateRight >> setState a >> stepAnt)
-  in ([a, b], a)
+  let a = AntState black (rotateLeft  >> setState b >> moveOne)
+      b = AntState white (rotateRight >> setState a >> moveOne)
+  in a
+
+programSquare :: AntState
+programSquare =
+  let a = AntState white   (rotateRN 2  >> setState b >> stepTimes 3)
+      b = AntState black   (rotateRight >> setState c >> stepTimes 2)
+      c = AntState magenta (rotateLN 2  >> setState d >> stepTimes 3)
+      d = AntState cyan    (rotateLeft  >> setState a >> moveOne)
+  in a
 
 defaultAnt :: Ant
-defaultAnt = def & defaultState .~ snd defaultProgram
+defaultAnt = def & defaultState .~ programSquare
 
 renderAnt :: Ant -> Picture
 renderAnt a = renderWorkspace 5 (a ^. workspace)
@@ -48,8 +56,16 @@ simulateAnt :: Display -> IO ()
 simulateAnt d =
   simulate
   d
-  black
-  10
+  (greyN 0.3)
+  60
   defaultAnt
   renderAnt
   updateAnt
+
+
+debugRun :: IO ()
+debugRun = go defaultAnt
+  where go ant = do
+          let newant = execState stepAnt ant
+          print newant
+          go newant

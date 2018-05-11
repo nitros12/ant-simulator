@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Lib where
 
@@ -12,11 +13,15 @@ import Data.Maybe
 import qualified Graphics.Gloss.Data.Color as C
 import qualified Graphics.Gloss.Rendering as R
 import Protolude hiding (Map)
+import qualified Prelude
 
 data AntState = AntState
   { getColour :: R.Color
   , getUpdater :: State Ant ()
   }
+
+instance Prelude.Show AntState where
+  show antstate = "AntState " <> show (getColour antstate)
 
 data Vec2 =
   Vec2 {-# UNPACK #-}!Int
@@ -36,10 +41,22 @@ scaleVec2 n (Vec2 a b) = Vec2 (a * n) (b * n)
 
 data Direction
   = DirUp
+  | DirRight
   | DirDown
   | DirLeft
-  | DirRight
-  deriving (Enum, Ord, Eq)
+  deriving (Enum, Ord, Eq, Show, Bounded)
+
+nextEnum :: forall a. (Bounded a, Enum a) => a -> a
+nextEnum i = toEnum index
+  where index = (fromEnum i + 1) `mod` range
+        range = 1 + upper
+        upper = fromEnum (maxBound :: a)
+
+prevEnum :: forall a. (Bounded a, Enum a) => a -> a
+prevEnum i = toEnum index
+  where index = (fromEnum i - 1) `mod` range
+        range = 1 + upper
+        upper = fromEnum (maxBound :: a)
 
 type WorkSpace = Map Vec2 AntState
 
@@ -52,8 +69,11 @@ data Ant = Ant
 
 makeLenses ''Ant
 
+instance Prelude.Show Ant where
+  show ant = "Ant " <> show (ant ^. workspace) <> show (ant ^. direction) <> show (ant ^. position)
+
 instance Default Ant where
-  def = Ant Data.HashMap.empty DirUp (Vec2 0 0) (AntState C.black stepOnce)
+  def = Ant Data.HashMap.empty DirUp (Vec2 0 0) (AntState C.black moveOne)
 
 setState :: AntState -> State Ant ()
 setState newstate = do
@@ -73,14 +93,14 @@ stepTimes n = do
   let movement = scaleVec2 n $ movementVector (ant ^. direction)
   put (ant & position +~ movement)
 
-stepOnce :: State Ant ()
-stepOnce = stepTimes 1
+moveOne :: State Ant ()
+moveOne = stepTimes 1
 
 rotateRight :: State Ant ()
-rotateRight = direction %= succ
+rotateRight = direction %= nextEnum
 
 rotateLeft :: State Ant ()
-rotateLeft = direction %= pred
+rotateLeft = direction %= prevEnum
 
 rotateRN :: Int -> State Ant ()
 rotateRN n = replicateM_ n rotateRight
